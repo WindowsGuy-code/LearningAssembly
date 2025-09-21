@@ -98,6 +98,7 @@ doneModule:
   lea rcx, [FoundSize]
   mov ecx, r8
   call KdPrint
+  jmp PatternScanImage
 
 
 patternfilter:
