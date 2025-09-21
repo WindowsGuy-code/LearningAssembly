@@ -2,6 +2,7 @@ extern KdPrint
 extern MmGetSystemRoutineAddress
 extern ExAllocatePool
 extern NonPagedPool
+extern IMAGE_FIRST_SECTION
 
 global DriverEntry
 
@@ -16,6 +17,11 @@ bye db 'Unloading PatternDriver', 10, 0
 errmsg db '[PatternDriver] Error: %d', 10, 0
 Foundaddr db '[PatternDriver] Found Kernel base: %d', 10, 0
 FoundSize db '[PatternDriver] Found Kernel Size: %d', 10, 0
+text db '.text', 0
+data db '.data', 0
+rodata db '.rodata'
+
+
 uniSys:
   dw 'Z', 'w', 'Q', 'u', 'e', 'r', 'y', 'S', 'y', 's', 't', 'e', 'm', 'I', 'n', 'f', 'o', 'r', 'm', 'a', 't', 'i', 'o', 'n', 0
 
@@ -63,7 +69,7 @@ Filter:
   movzx rsi, word [rdx + 0x26]
   add rbx, rsi
   
-  mov edi, name
+  mov edi, [targetName]
   push edi
   push ecx
   mov ecx, -1 
@@ -94,10 +100,80 @@ doneModule:
   call KdPrint
 
 
+patternfilter:
+  
+  mov ax, 40 
+  mov cx, r11
+  mul cx
+  pop rcx
+  lea rdi, [rax + ax]
+  mov rdx, [rdi + 0x08]
+  lea rcx, [r11 + rdx]
+  mov rdx, [rax + 0x0C]
+  
+  mov edi, byte ptr [rax]
+  push ecx
+  mov ecx, -1 
+  xor eax, eax 
+  repne scasb 
+  not ecx 
+  repe cmpsb
+  pop ecx 
+  je findPattern
+  dec r11 
+  jmp patternfilter
   
 
-PatternScan:
   
+
+  
+  
+;
+
+
+findPattern:
+  
+
+PatternScanImage:
+  mov r10w, [rcx]
+  push rcx
+  cmp r10w, 0x4D5A
+  jne error
+  lea r11, [r10 + 0xC8]
+  lea r9, [r10 + r11]
+  mov edx, [r9]
+  cmp edx, 0x50450000
+  jne error 
+  
+  mov rcx, r9
+  call IMAGE_FIRST_SECTION
+  lea rdx, [r9 + 4]
+  mov r11, [rdx + 2]
+; esi: input
+  mov edi, byte ptr [rax]
+  push ecx
+  mov ecx, -1 
+  xor eax, eax 
+  repne scasb 
+  not ecx 
+  repe cmpsb
+  pop ecx 
+  pop r14
+  jne patternfilter
+  mov rdi, [rax + 0x08]
+  lea rcx, [rcx + rdi]
+  mov rdx, [rax + 0x0C]
+  jmp findPattern
+
+
+
+
+
+
+
+
+
+
 
 
 
