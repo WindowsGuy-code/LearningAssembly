@@ -9,11 +9,16 @@ extern ExAllocatePool
 %define STATUS_SUCCESS 0x00000000
 %define ALLOCATION_FAILED 0x00000055
 %define sizeofRTL_PROCESS_MODULES 0x0128
+%define TARGET_NOT_FOUND 0x0000404
+%define e_magic 0x5A4D
+%define SIGNATURE_INCORRECT 0x0000401
+%define nt_signature 0x50450000
 
 section .data:
 LoadedMSG db '[PatternDriver] Loaded', 10, 0
 UnloadedMSG db '[PatternDriver] Unloaded with code: %d', 10, 0
 KernelBaseMSG db '[PatternDriver] Kernel Base address: %d', 10, 0
+KernelSizeMSG db '[PatternDriver] Kernel Size: %d', 10, 0
 ErrorMSG db '[PatternDriver] An error occured (%d)', 10, 0
 dq len
 TargetProc db 'ntoskrnl.exe', 0
@@ -24,7 +29,66 @@ driverUnloadptr:
 
 section .text:
 
-; Helper1
+; Helper1 [PatternScanning]
+IMAGE_FIRST_SECTION:
+  sub rsp, 40
+  movzx eax, [rcx + 0x14]
+  add rcx, 0x18
+  add rax, rcx
+  add rsp, 40
+  ret
+
+
+specialExit:
+  add rsp, 40
+  ret
+
+ReturnResults:
+  mov r10, dword ptr [rdi + 0x0C]
+  lea rax, [rcx + r10]
+  mov rdi, dword ptr [rdi + 0x08]
+  add rsp, 40
+  ret
+  
+
+
+FindSection: ;rcx: addr rdi: ptr Section
+  sub rsp, 40
+  movzx r10, byte ptr [rcx]
+  movzx r11, e_magic
+  cmp r10, r11
+  xor r11, r11
+  mov rax, SIGNATURE_INCORRECT
+  je specialExit
+
+  mov r11, dword ptr [rcx + 0x3c]
+  lea r12, [rcx + r11]
+  
+  mov r13, dword ptr [r12]
+  cmp r13, nt_signature
+  je specialExit
+
+  push rcx
+  mov rcx, r12
+  call IMAGE_FIRST_SECTION
+  push rax
+ 
+  movzx rcx, byte ptr [rax]
+  movzx rdi, byte ptr [rdi]
+  call strstr
+  test rax, rax
+  pop rcx
+  pop rax
+  jz ReturnResults
+
+  
+  mov r8, 
+  
+
+
+  
+
+; Helper2 [Info gathering]
 
 FilterLoopDone:
   mov rax, [rdi + 0x10]
@@ -33,6 +97,7 @@ FilterLoopDone:
   add rsp, 40
   ret
 
+;Fix the looping here
 FilterLoop:
   mul edx
 
@@ -44,9 +109,9 @@ FilterLoop:
   mov rcx, [r11]
   mov rdi, [TargetProc]
   call strstr
-  cmp rax, 0
+  test rax, rax
   mov rdi, rdx
-  je FilterLoopDone
+  jz FilterLoopDone
 
   dec edx
   jmp FilterLoop
@@ -62,34 +127,37 @@ Filter:
   mov rcx, [r11]
   mov rdi, [TargetProc]
   call strstr
-  cmp rax, 0
-  je FilterLoopDone
-  jmp 
-  
-
-
+  test rax, rax
+  jz FilterLoopDone
+  jmp FilterLoop
 
 
 ; Main Routines
 DriverUnload:
+  push rbp
   lea rcx, [rel UnloadedMSG]
-  mov ecx, STATUS_SUCCESS
+  mov edx, STATUS_SUCCESS
   call KdPrint
+  pop rbp
   ret
 
 Error:
+  push rbp
   lea rcx, [rel ErrorMSG]
   call KdPrint
   mov rax, STATUS_SUCCESS
+  pop rbp
   add rsp, 40
   ret
 
 Exit:
-  cmp ecx, STATUS_SUCCESS
+  cmp edx, STATUS_SUCCESS
   jne Error
+  push rbp ; Align stack (according to msdn kdPrint is like printf)
   lea rcx, [rel UnloadedMSG]
   call KdPrint
   mov rax, STATUS_SUCCESS
+  pop rbp
   add rsp, 40
   ret
 
@@ -107,12 +175,14 @@ DriverEntry:
 
   mov rcx, [len]
   test rcx, rcx
-  mov ecx, SYSCALL_FAILED
+  mov edx, SYSCALL_FAILED
   jz Exit
 
+  xor rcx, rcx
+  mov rdx, rcx
   call ExAllocatePool
   test rax, rax
-  mov ecx, ALLOCATION_FAILED
+  mov edx, ALLOCATION_FAILED
   jz Exit
 
   mov rcx, 11
@@ -121,13 +191,29 @@ DriverEntry:
   lea r9, qword ptr [len]
   call ZwQuerySystemInformation
   cmp rax, STATUS_SUCCESS
-  mov rcx, SYSCALL_FAILED
+  mov edx, SYSCALL_FAILED
   jne Exit
 
   mov eax, sizeofRTL_PROCESS_MODULES
   mov edx, dword [rdi]
   lea r8, [rdi + 0x08]
+
+  xor rax, rax
   call Filter
+  test rax, rax
+  mov edx, TARGET_NOT_FOUND
+  jz Exit
+
+  push rax
+  lea rcx, [rel KernelBaseMSG]
+  mov edx, rax
+  call printf
+
+  lea rcx, [rel KernelSizeMSG]
+  mov edx, [ImageSize]
+  call printf
+  pop rcx
+
   
 
 
