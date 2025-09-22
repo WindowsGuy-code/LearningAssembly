@@ -91,11 +91,11 @@ doneModule:
   test rax, rax ; if this is true then rax is not filled therefor ntoskrnl was not found
   jz error
 
-  lea rcx, [Foundaddr]
+  lea rcx, [rel Foundaddr]
   mov ecx, rax
   call KdPrint
 
-  lea rcx, [FoundSize]
+  lea rcx, [rel FoundSize]
   mov ecx, r8
   call KdPrint
   jmp PatternScanImage
