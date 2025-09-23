@@ -49,6 +49,13 @@ ReturnResults:
   mov rdi, dword ptr [rdi + 0x08]
   add rsp, 40
   ret
+
+SectionLoop: ; rcx addr, rdi: ptr Section r8: numSections r9: baseOfSection
+  movzx r9, 0x40
+  mov rdx, r8
+  mov rax, r9
+  mul rax
+
   
 
 
@@ -72,20 +79,22 @@ FindSection: ;rcx: addr rdi: ptr Section
   mov rcx, r12
   call IMAGE_FIRST_SECTION
   push rax
- 
+  push rdi
   movzx rcx, byte ptr [rax]
   movzx rdi, byte ptr [rdi]
   call strstr
   test rax, rax
-  pop rcx
+  pop rdi
   pop rax
   jz ReturnResults
 
   
-  mov r8, 
-  
+  lea r8, [r13 + 0x06]
+  movzx r8, dword ptr [r8]
+  mov r9, rdi
+  pop rdi
 
-
+  jmp SectionLoop
   
 
 ; Helper2 [Info gathering]
@@ -171,7 +180,7 @@ DriverEntry:
   mov rdi, 0
   mov r8, 0
   lea r9, qword ptr [len]
-  call ZwQuerySystemInformation
+  call ZwQuerySystemInformation ; SystemInfoClass, SystemInfo len, &len
 
   mov rcx, [len]
   test rcx, rcx
