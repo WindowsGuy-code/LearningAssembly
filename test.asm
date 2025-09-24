@@ -186,7 +186,7 @@ Exit:
 
 DriverEntry:
   sub rsp, 40
-  mov rdi, qword [driverUnloadPtr]
+  mov rdi, qword ptr [driverUnloadPtr]
   mov [rax + 0x32], rdi
 
   mov rcx, 11
